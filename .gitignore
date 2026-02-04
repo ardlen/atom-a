@@ -1,0 +1,14 @@
+# Сгенерированные сертификаты и ключи (scripts/generate_certs.sh, scripts/build_sgw_ivi_registry.sh)
+certs/
+ivi-certs/
+
+# Собранные реестры (registry-builder -output sgw-*.p12)
+sgw-*.p12
+
+# Собранные бинарники
+/registry-analyzer
+/registry-builder
+/p7-analyzer
+
+# Системные и временные файлы
+.DS_Store

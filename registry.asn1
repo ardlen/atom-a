@@ -1,0 +1,169 @@
+ATOM-PKCS12-REGISTRY { iso(1) identified-organization(3) dod(6) internet(1) private(4) enterprise(1) 99999 1 }
+DEFINITIONS ::= BEGIN
+
+-- =============================================
+-- OID Constants
+-- =============================================
+pkcs-7 OBJECT IDENTIFIER ::= { iso(1) member-body(2) us(840) rsadsi(113549) pkcs(7) }
+pkcs-9 OBJECT IDENTIFIER ::= { iso(1) member-body(2) us(840) rsadsi(113549) pkcs(9) }
+pkcs-12 OBJECT IDENTIFIER ::= { iso(1) member-body(2) us(840) rsadsi(113549) pkcs(12) }
+
+id-data OBJECT IDENTIFIER ::= { pkcs-7 1 }
+id-signedData OBJECT IDENTIFIER ::= { pkcs-7 2 }
+
+atom-attributes OBJECT IDENTIFIER ::= { 1 3 6 1 4 1 99999 1 }
+id-atom-vin  OBJECT IDENTIFIER ::= { atom-attributes 1 }
+id-atom-ver  OBJECT IDENTIFIER ::= { atom-attributes 2 }
+id-atom-uid  OBJECT IDENTIFIER ::= { atom-attributes 3 }
+id-atom-roleName  OBJECT IDENTIFIER ::= { atom-attributes 4 }
+id-atom-roleValidityPeriod  OBJECT IDENTIFIER ::= { atom-attributes 5 }
+
+id-contentType OBJECT IDENTIFIER ::= { pkcs-9 3 }
+id-messageDigest OBJECT IDENTIFIER ::= { pkcs-9 4 }
+
+id-certBag OBJECT IDENTIFIER ::= { pkcs-12 10 1 3 }
+id-friendlyName OBJECT IDENTIFIER ::= { pkcs-9 20 }
+id-localKeyID OBJECT IDENTIFIER ::= { pkcs-9 21 }
+
+id-ce-roleSyntax OBJECT IDENTIFIER ::= { joint-iso-itu-t(2) ds(5) certificateExtension(29) 3 }
+id-ce-attCertValidityPeriod OBJECT IDENTIFIER ::= { 1 3 6 1 5 5 7 1 24 }
+
+-- =============================================
+-- Basic Types
+-- =============================================
+CertificateSerialNumber ::= INTEGER
+Certificate ::= OCTET STRING
+
+AlgorithmIdentifier ::= SEQUENCE {
+    algorithm   OBJECT IDENTIFIER,
+    parameters  ANY DEFINED BY algorithm OPTIONAL
+}
+
+CMSVersion ::= INTEGER (1..65535)
+EncryptedDigest ::= OCTET STRING
+
+-- =============================================
+-- PKCS#12 PFX Structure
+-- =============================================
+PFX ::= SEQUENCE {
+    version    INTEGER {v3(3)},
+    authSafe   ContentInfo,
+    macData    MacData OPTIONAL
+}
+
+-- =============================================
+-- CMS Structures
+-- =============================================
+ContentInfo ::= SEQUENCE {
+    contentType   OBJECT IDENTIFIER,
+    content       [0] EXPLICIT SignedData
+}
+
+SignedData ::= SEQUENCE {
+    version          CMSVersion,
+    digestAlgorithms DigestAlgorithmIdentifiers,
+    encapContentInfo EncapsulatedContentInfo,
+    certificates     [0] CertificateSet OPTIONAL,
+    crls             [1] CertificateList OPTIONAL,
+    signerInfos      SignerInfos
+}
+
+DigestAlgorithmIdentifiers ::= SET OF AlgorithmIdentifier
+CertificateSet ::= SET OF Certificate
+CertificateList ::= SET OF Certificate
+SignerInfos ::= SET OF SignerInfo
+
+SignerInfo ::= SEQUENCE {
+    version                   CMSVersion,
+    sid                       SignerIdentifier,
+    digestAlgorithm           AlgorithmIdentifier,
+    authenticatedAttributes   [0] Attributes OPTIONAL,
+    digestEncryptionAlgorithm AlgorithmIdentifier,
+    encryptedDigest           EncryptedDigest,
+    unauthenticatedAttributes [1] Attributes OPTIONAL
+}
+
+SignerIdentifier ::= CHOICE {
+    issuerAndSerialNumber IssuerAndSerialNumber,
+    subjectKeyIdentifier [0] SubjectKeyIdentifier
+}
+
+IssuerAndSerialNumber ::= SEQUENCE {
+    issuer Name,
+    serialNumber CertificateSerialNumber
+}
+
+SubjectKeyIdentifier ::= OCTET STRING
+
+EncapsulatedContentInfo ::= SEQUENCE {
+    eContentType  OBJECT IDENTIFIER,
+    eContent      [0] EXPLICIT OCTET STRING OPTIONAL
+}
+
+-- =============================================
+-- PKCS#12 Safe Structures
+-- =============================================
+SafeContents ::= SEQUENCE OF SafeBag
+
+SafeBag ::= SEQUENCE {
+    bagId          OBJECT IDENTIFIER,
+    bagValue       [0] EXPLICIT CertBag,
+    bagAttributes  SET OF Attribute OPTIONAL
+}
+
+CertBag ::= SEQUENCE {
+    certId    OBJECT IDENTIFIER,
+    certValue [0] EXPLICIT OCTET STRING
+}
+
+-- =============================================
+-- Attribute Structures
+-- =============================================
+Attributes ::= SET OF Attribute
+
+Attribute ::= SEQUENCE {
+    attrType   OBJECT IDENTIFIER,
+    attrValues SET OF AttributeValue
+}
+
+AttributeValue ::= ANY
+
+VIN ::= UTF8String
+VER ::= SEQUENCE {
+    timestamp     GeneralizedTime,
+    versionNumber INTEGER
+}
+UID ::= UTF8String
+
+RoleName ::= UTF8String
+RoleValidityPeriod ::= SEQUENCE {
+    notBeforeTime  GeneralizedTime,
+    notAfterTime   GeneralizedTime
+}
+
+LocalKeyId ::= OCTET STRING
+
+-- =============================================
+-- Supporting Types
+-- =============================================
+ContentType ::= OBJECT IDENTIFIER
+
+MessageDigest ::= OCTET STRING
+
+Name ::= SEQUENCE {
+    commonName UTF8String OPTIONAL,
+    organizationName UTF8String OPTIONAL
+}
+
+MacData ::= SEQUENCE {
+    mac         DigestInfo,
+    macSalt     OCTET STRING,
+    iterations  INTEGER DEFAULT 1
+}
+
+DigestInfo ::= SEQUENCE {
+    digestAlgorithm AlgorithmIdentifier,
+    digest        OCTET STRING
+}
+
+END

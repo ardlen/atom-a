@@ -1,0 +1,38 @@
+{
+  "signerCert": "certs/signer.pem",
+  "signerKey": "certs/signer-key.pem",
+  "vin": "EAY2AT0MPS2013376",
+  "verTimestamp": "2024-01-01T00:00:00Z",
+  "verVersion": 100,
+  "uid": "emailAddress=client.a@atom.team,CN=Client A,OU=Sales,O=KAMA,L=SPb,ST=SPb,C=RU",
+  "safeBags": [
+    {
+      "cert": "certs/driver.pem",
+      "roleName": "delegate",
+      "roleNotBefore": "2026-01-15T17:40:20Z",
+      "roleNotAfter": "2027-01-15T17:40:20Z",
+      "localKeyID": ""
+    },
+    {
+      "cert": "certs/passenger.pem",
+      "roleName": "not_delegate",
+      "roleNotBefore": "2026-01-15T17:40:20Z",
+      "roleNotAfter": "2027-01-15T17:40:20Z",
+      "localKeyID": ""
+    },
+    {
+      "cert": "certs/ivi.pem",
+      "roleName": "delegate",
+      "roleNotBefore": "2026-01-15T17:40:21Z",
+      "roleNotAfter": "2027-01-15T17:40:21Z",
+      "localKeyID": ""
+    },
+    {
+      "cert": "certs/mobile-driver.pem",
+      "roleName": "driver-mobile",
+      "roleNotBefore": "2026-01-15T17:40:21Z",
+      "roleNotAfter": "2027-01-15T17:40:21Z",
+      "localKeyID": ""
+    }
+  ]
+}

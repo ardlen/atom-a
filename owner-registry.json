@@ -1,0 +1,163 @@
+{
+  "certificates": [
+    {
+      "authorityKeyId": "9ac1ca21ba4760627b6a66527fecbc2b84894455",
+      "isSigner": true,
+      "issuer": "CN=Owner Registry Signer",
+      "notAfter": "2027-01-29T10:20:08Z",
+      "notBefore": "2026-01-29T10:20:08Z",
+      "publicKeyAlgorithm": "ECDSA",
+      "raw": "MIIBhTCCASugAwIBAgIEUFmcNDAKBggqhkjOPQQDAjAgMR4wHAYDVQQDDBVPd25lciBSZWdpc3RyeSBTaWduZXIwHhcNMjYwMTI5MTAyMDA4WhcNMjcwMTI5MTAyMDA4WjAgMR4wHAYDVQQDDBVPd25lciBSZWdpc3RyeSBTaWduZXIwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAATY+46p7W+w91rJWfFxuh+Mwy9SZI7gkIiXklBslRLOsEWiXeSwOtpshjMnVAkGLrThjnLSSLgvVmZ0Nzmzvbzlo1MwUTAdBgNVHQ4EFgQUmsHKIbpHYGJ7amZSf+y8K4SJRFUwHwYDVR0jBBgwFoAUmsHKIbpHYGJ7amZSf+y8K4SJRFUwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAgNIADBFAiEAjG09EJFgIWKsV+I9Hyy9lKFCeM71uQR/MA1f/sXKzM4CIDwJBnuF+HV1cEZz8mwWu9OJnG592AtcCHHJNWx3gKDF",
+      "serialNumber": "1348049972",
+      "serialNumberHex": "50599c34",
+      "signatureAlgorithm": "ECDSA-SHA256",
+      "subject": "CN=Owner Registry Signer",
+      "subjectKeyId": "9ac1ca21ba4760627b6a66527fecbc2b84894455",
+      "version": 3
+    }
+  ],
+  "contentType": "1.2.840.113549.1.7.2",
+  "pfxVersion": 3,
+  "safeBags": [
+    {
+      "bagId": "1.2.840.113549.1.12.10.1.3",
+      "certId": "1.2.840.113549.1.9.22.1",
+      "certType": "X.509 Certificate",
+      "certSummary": {
+        "subject": "CN=Driver-Certificate",
+        "issuer": "CN=Driver-Certificate",
+        "serial": "456dbb9c",
+        "notBefore": "2026-01-29",
+        "notAfter": "2027-01-29",
+        "keyAlgorithm": "ECDSA"
+      },
+      "certValueLen": 387,
+      "bagAttributes": [
+        {
+          "name": "roleName",
+          "value": "delegate"
+        },
+        {
+          "name": "roleValidityPeriod",
+          "value": "notBefore=2026-01-15 17:40:20, notAfter=2027-01-15 17:40:20"
+        },
+        {
+          "name": "localKeyID",
+          "value": "019c09447a0375eb95628f92456dbb9c"
+        }
+      ]
+    },
+    {
+      "bagId": "1.2.840.113549.1.12.10.1.3",
+      "certId": "1.2.840.113549.1.9.22.1",
+      "certType": "X.509 Certificate",
+      "certSummary": {
+        "subject": "CN=Passenger-Certificate",
+        "issuer": "CN=Passenger-Certificate",
+        "serial": "2f29bb9d",
+        "notBefore": "2026-01-29",
+        "notAfter": "2027-01-29",
+        "keyAlgorithm": "ECDSA"
+      },
+      "certValueLen": 394,
+      "bagAttributes": [
+        {
+          "name": "roleName",
+          "value": "not_delegate"
+        },
+        {
+          "name": "roleValidityPeriod",
+          "value": "notBefore=2026-01-15 17:40:20, notAfter=2027-01-15 17:40:20"
+        },
+        {
+          "name": "localKeyID",
+          "value": "019c09447a037d96ac545d632f29bb9d"
+        }
+      ]
+    },
+    {
+      "bagId": "1.2.840.113549.1.12.10.1.3",
+      "certId": "1.2.840.113549.1.9.22.1",
+      "certType": "X.509 Certificate",
+      "certSummary": {
+        "subject": "CN=IVI-Certificate",
+        "issuer": "CN=IVI-Certificate",
+        "serial": "3987dac2",
+        "notBefore": "2026-01-29",
+        "notAfter": "2027-01-29",
+        "keyAlgorithm": "ECDSA"
+      },
+      "certValueLen": 381,
+      "bagAttributes": [
+        {
+          "name": "roleName",
+          "value": "delegate"
+        },
+        {
+          "name": "roleValidityPeriod",
+          "value": "notBefore=2026-01-15 17:40:21, notAfter=2027-01-15 17:40:21"
+        },
+        {
+          "name": "localKeyID",
+          "value": "019c09447a03731f91afa6403987dac2"
+        }
+      ]
+    },
+    {
+      "bagId": "1.2.840.113549.1.12.10.1.3",
+      "certId": "1.2.840.113549.1.9.22.1",
+      "certType": "X.509 Certificate",
+      "certSummary": {
+        "subject": "CN=Mobile-Driver-Certificate",
+        "issuer": "CN=Mobile-Driver-Certificate",
+        "serial": "92391c5b",
+        "notBefore": "2026-01-29",
+        "notAfter": "2027-01-29",
+        "keyAlgorithm": "ECDSA"
+      },
+      "certValueLen": 402,
+      "bagAttributes": [
+        {
+          "name": "roleName",
+          "value": "driver-mobile"
+        },
+        {
+          "name": "roleValidityPeriod",
+          "value": "notBefore=2026-01-15 17:40:21, notAfter=2027-01-15 17:40:21"
+        },
+        {
+          "name": "localKeyID",
+          "value": "019c09447a037798b4643a6a92391c5b"
+        }
+      ]
+    }
+  ],
+  "signers": [
+    {
+      "digestAlgorithm": "2.16.840.1.101.3.4.2.1",
+      "signatureAlgorithm": "1.2.840.10045.4.3.2",
+      "attributes": [
+        {
+          "name": "contentType",
+          "value": "pkcs7-data"
+        },
+        {
+          "name": "VIN",
+          "value": "EAY2AT0MPS2013376"
+        },
+        {
+          "name": "VER",
+          "value": "timestamp=2024-01-01T00:00:00Z, version=100"
+        },
+        {
+          "name": "messageDigest",
+          "value": "8015ea3da629136bc293bec9cc6658f819a6db2682258434c1d6e4657f4958b8"
+        },
+        {
+          "name": "UID",
+          "value": "emailAddress=client.a@atom.team,CN=Client A,OU=Sales,O=KAMA,L=SPb,ST=SPb,C=RU"
+        }
+      ]
+    }
+  ]
+}
