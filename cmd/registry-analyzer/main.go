@@ -34,6 +34,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "чтение файла: %v\n", err)
 		os.Exit(1)
 	}
+
 	c, err := registry.Parse(data)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "разбор контейнера: %v\n", err)

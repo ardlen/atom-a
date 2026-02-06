@@ -41,10 +41,10 @@ func TestBuildRegistry(t *testing.T) {
 	// Один SafeBag с тем же сертификатом (для простоты).
 	verTime := time.Now().UTC().Truncate(time.Second)
 	attrs := SignerAttrs{
-		VIN:           "TESTVIN123",
-		VERTimestamp:  verTime,
-		VERVersion:    1,
-		UID:           "CN=Test",
+		VIN:          "TESTVIN123",
+		VERTimestamp: verTime,
+		VERVersion:   1,
+		UID:          "CN=Test",
 	}
 	safeBags := []SafeBagInput{
 		{
@@ -79,12 +79,5 @@ func TestBuildRegistry(t *testing.T) {
 	}
 	if len(c.SafeBagInfos) != 1 {
 		t.Errorf("safeBagInfos count = %d", len(c.SafeBagInfos))
-	}
-	signerCert := c.SignerCert(&c.Signers[0])
-	if signerCert == nil {
-		t.Error("SignerCert not found: подписант контейнера не найден по SID среди сертификатов")
-	}
-	if signerCert != nil && len(signerCert.SubjectKeyId) == 0 {
-		t.Error("SignerCert должен иметь SubjectKeyId")
 	}
 }

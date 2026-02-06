@@ -151,8 +151,8 @@ ContentType ::= OBJECT IDENTIFIER
 MessageDigest ::= OCTET STRING
 
 Name ::= SEQUENCE {
-    commonName UTF8String OPTIONAL,
-    organizationName UTF8String OPTIONAL
+    commonName [0] UTF8String OPTIONAL,
+    organizationName [1] UTF8String OPTIONAL
 }
 
 MacData ::= SEQUENCE {

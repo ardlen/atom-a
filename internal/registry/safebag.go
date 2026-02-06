@@ -10,6 +10,15 @@ import (
 	"crypto/x509"
 )
 
+// formatUUID форматирует 16 байт как UUID с дефисами (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).
+func formatUUID(b []byte) string {
+	if len(b) != 16 {
+		return hex.EncodeToString(b)
+	}
+	return hex.EncodeToString(b[0:4]) + "-" + hex.EncodeToString(b[4:6]) + "-" +
+		hex.EncodeToString(b[6:8]) + "-" + hex.EncodeToString(b[8:10]) + "-" + hex.EncodeToString(b[10:16])
+}
+
 // formatGeneralizedTime преобразует ASN.1 GeneralizedTime (например "20260115174021Z") в формат "2006-01-02 15:04:05".
 func formatGeneralizedTime(s string) string {
 	t, err := time.Parse("20060102150405Z", s)
@@ -52,10 +61,13 @@ type BagAttributeValue struct {
 // ParseSafeBagInfo разбирает один SafeBag в SafeBagInfo: извлекает CertBag, при возможности парсит сертификат как X.509 и расшифровывает атрибуты мешка.
 func ParseSafeBagInfo(bag SafeBag) (info SafeBagInfo, err error) {
 	info.BagId = bag.BagId
-	// BagValue — [0] EXPLICIT CertBag (SEQUENCE { certId, certValue [0] }). При разборе может быть в Bytes или FullBytes.
+	// BagValue — [0] IMPLICIT CertBag: в Bytes может быть content SEQUENCE без 0x30.
 	bagValueBytes := bag.BagValue.Bytes
 	if len(bagValueBytes) == 0 && len(bag.BagValue.FullBytes) > 0 {
 		bagValueBytes = bag.BagValue.FullBytes
+	}
+	if len(bagValueBytes) > 0 && bagValueBytes[0] != 0x30 {
+		bagValueBytes = derPrependTLV(0x30, bag.BagValue.Bytes)
 	}
 	var cb CertBag
 	_, err = asn1.Unmarshal(bagValueBytes, &cb)
@@ -64,8 +76,11 @@ func ParseSafeBagInfo(bag SafeBag) (info SafeBagInfo, err error) {
 	}
 	info.CertId = cb.CertId
 	info.CertType = CertTypeName(cb.CertId)
-	info.CertValueLen = len(cb.CertValue)
-	if cert, err := x509.ParseCertificate(cb.CertValue); err == nil {
+	// CertValue: [0] IMPLICIT OCTET STRING → Bytes = cert DER; иначе может быть 04 ll ... (EXPLICIT)
+	certDER := cb.CertValue.Bytes
+	certDER = unwrapOctetStringIfPresent(certDER)
+	info.CertValueLen = len(certDER)
+	if cert, err := x509.ParseCertificate(certDER); err == nil {
 		info.CertSummary = &CertSummary{
 			Subject:   cert.Subject.String(),
 			Issuer:    cert.Issuer.String(),
@@ -74,7 +89,7 @@ func ParseSafeBagInfo(bag SafeBag) (info SafeBagInfo, err error) {
 			NotAfter:  cert.NotAfter.Format("2006-01-02"),
 			KeyAlg:    cert.PublicKeyAlgorithm.String(),
 		}
-		info.CertValueDER = append([]byte(nil), cb.CertValue...) // копия для выгрузки в PEM
+		info.CertValueDER = append([]byte(nil), certDER...) // копия для выгрузки в PEM
 	}
 	for _, a := range bag.BagAttributes {
 		vals := DecodeBagAttributeValues(a)
@@ -107,7 +122,14 @@ func decodeBagAttrValue(oid asn1.ObjectIdentifier, content, full []byte) string 
 		}
 		return string(content)
 	case oid.Equal(OIDPKCS9LocalKeyID):
-		return hex.EncodeToString(content)
+		raw := content
+		if len(raw) == 0 && len(full) > 0 {
+			raw = unwrapOctetStringIfPresent(full)
+		}
+		if len(raw) == 16 {
+			return formatUUID(raw)
+		}
+		return hex.EncodeToString(raw)
 	case oid.Equal(OIDAtomRoleName):
 		return string(content)
 	case oid.Equal(OIDAtomRoleValidityPeriod):

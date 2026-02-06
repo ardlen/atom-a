@@ -4,7 +4,6 @@ import (
 	"encoding/asn1"
 	"encoding/hex"
 	"fmt"
-	"time"
 )
 
 // AttrValue — одно расшифрованное значение атрибута для вывода (имя OID и человекочитаемое/сырое значение).
@@ -66,11 +65,8 @@ func decodeSingleAttrValue(oid asn1.ObjectIdentifier, raw []byte, name string) A
 		ts := string(tsRaw.Bytes)
 		var ver int
 		asn1.Unmarshal(verRaw.FullBytes, &ver)
-		if t, err := time.Parse("20060102150405Z", ts); err == nil {
-			av.Value = fmt.Sprintf("timestamp=%s, version=%d", t.Format(time.RFC3339), ver)
-		} else {
-			av.Value = fmt.Sprintf("timestamp=%s, version=%d", ts, ver)
-		}
+		tsFormatted := formatGeneralizedTime(ts) // "2006-01-02 15:04:05"
+		av.Value = fmt.Sprintf("%s:V%d", tsFormatted, ver)
 	case oid.Equal(OIDAtomRoleValidityPeriod):
 		// Период действия роли: SEQUENCE { notBeforeTime GeneralizedTime, notAfterTime GeneralizedTime }.
 		var seq struct {

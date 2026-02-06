@@ -20,6 +20,23 @@ type Container struct {
 	Signers      []SignerInfo
 }
 
+// derPrependTLV добавляет DER-тег и длину к content (для восстановления TLV при разборе IMPLICIT).
+func derPrependTLV(tag byte, content []byte) []byte {
+	if len(content) == 0 {
+		return nil
+	}
+	l := len(content)
+	var lenBytes []byte
+	if l < 128 {
+		lenBytes = []byte{byte(l)}
+	} else if l <= 255 {
+		lenBytes = []byte{0x81, byte(l)}
+	} else {
+		lenBytes = []byte{0x82, byte(l >> 8), byte(l)}
+	}
+	return append(append([]byte{tag}, lenBytes...), content...)
+}
+
 // Parse разбирает DER-кодированный файл .p12 (PFX с authSafe = ContentInfo(SignedData))
 // и возвращает структуру Container с сертификатами, мешками и подписантами.
 func Parse(der []byte) (*Container, error) {
@@ -40,8 +57,13 @@ func Parse(der []byte) (*Container, error) {
 		return nil, fmt.Errorf("authSafe contentType is not pkcs7-signedData: %v", ci.ContentType)
 	}
 
+	// [0] IMPLICIT SignedData: при записи в Content только content SEQUENCE без 0x30 — восстанавливаем TLV
+	signedDataDER := ci.Content.Bytes
+	if len(signedDataDER) > 0 && signedDataDER[0] != 0x30 {
+		signedDataDER = derPrependTLV(0x30, ci.Content.Bytes)
+	}
 	var sd SignedData
-	_, err = asn1.Unmarshal(ci.Content.Bytes, &sd)
+	_, err = asn1.Unmarshal(signedDataDER, &sd)
 	if err != nil {
 		return nil, fmt.Errorf("SignedData unmarshal: %w", err)
 	}
@@ -53,18 +75,23 @@ func Parse(der []byte) (*Container, error) {
 		Signers:     sd.SignerInfos,
 	}
 
-	// Сертификаты: [0] EXPLICIT SET OF Certificate (каждый Certificate — OCTET STRING с DER X.509).
-	if len(sd.Certificates.Bytes) > 0 {
-		certs, err := parseCertificateSet(sd.Certificates.Bytes)
+	// Сертификаты: [0] IMPLICIT — в Bytes может быть SET без тега 0x31, восстанавливаем только тег.
+	setBytes := sd.Certificates.Bytes
+	if len(setBytes) > 0 && setBytes[0] != 0x31 {
+		setBytes = append([]byte{0x31}, sd.Certificates.Bytes...)
+	}
+	if len(setBytes) > 0 {
+		certs, err := parseCertificateSet(setBytes)
 		if err != nil {
 			return nil, fmt.Errorf("certificates: %w", err)
 		}
 		c.Certificates = certs
 	}
 
-	// eContent (encapContentInfo): тип pkcs7-data, значение — OCTET STRING = SafeContents (SEQUENCE OF SafeBag).
-	if sd.EncapContentInfo.EContentType.Equal(OIDPKCS7Data) && len(sd.EncapContentInfo.EContent) > 0 {
-		bags, err := parseSafeContents(sd.EncapContentInfo.EContent)
+	// eContent: [0] IMPLICIT OCTET STRING → Bytes = SafeContents; иначе EXPLICIT → 04 ll ...
+	eContent := unwrapOctetStringIfPresent(sd.EncapContentInfo.EContent.Bytes)
+	if sd.EncapContentInfo.EContentType.Equal(OIDPKCS7Data) && len(eContent) > 0 {
+		bags, err := parseSafeContents(eContent)
 		if err != nil {
 			return nil, fmt.Errorf("SafeContents: %w", err)
 		}
@@ -145,7 +172,6 @@ func ParseAuthenticatedAttributes(raw []byte) ([]Attribute, error) {
 	rest := set.Bytes
 	for len(rest) > 0 {
 		var a Attribute
-		var err error
 		rest, err = asn1.Unmarshal(rest, &a)
 		if err != nil {
 			return nil, err
@@ -155,10 +181,39 @@ func ParseAuthenticatedAttributes(raw []byte) ([]Attribute, error) {
 	return attrs, nil
 }
 
+// unwrapOctetStringIfPresent возвращает payload: если d — DER OCTET STRING (04 ll ...), снимает обёртку.
+func unwrapOctetStringIfPresent(d []byte) []byte {
+	if len(d) < 2 || d[0] != 0x04 {
+		return d
+	}
+	skip := 2
+	l := int(d[1])
+	if d[1]&0x80 != 0 {
+		nlen := int(d[1] & 0x7f)
+		if 2+nlen > len(d) {
+			return d
+		}
+		l = 0
+		for i := 0; i < nlen; i++ {
+			l = l<<8 + int(d[2+i])
+		}
+		skip = 2 + nlen
+	}
+	if skip+l <= len(d) {
+		return d[skip : skip+l]
+	}
+	return d
+}
+
 // SignerAttributes возвращает расшифрованные атрибуты подписанта из SignerInfo ([0] authenticatedAttributes).
 func SignerAttributes(si *SignerInfo) ([]Attribute, error) {
 	if len(si.AuthenticatedAttributes.Bytes) == 0 {
 		return nil, nil
 	}
-	return ParseAuthenticatedAttributes(si.AuthenticatedAttributes.Bytes)
+	// [0] IMPLICIT: в Bytes лежит (length+content) SET, тег 0x31 был срезан; восстанавливаем только тег.
+	attrsBytes := si.AuthenticatedAttributes.Bytes
+	if attrsBytes[0] != 0x31 {
+		attrsBytes = append([]byte{0x31}, si.AuthenticatedAttributes.Bytes...)
+	}
+	return ParseAuthenticatedAttributes(attrsBytes)
 }
