@@ -199,7 +199,7 @@ go run ./cmd/p7-analyzer -format json -output report.json файл.p7
 
 Утилита **registry-builder** создаёт реестры на основе структуры данных `registry.asn1`, укажите имя выходного файла реестра. Все созданные реестры проверяются утилитой **registry-analyzer**.
 
-**Подробная инструкция** (формат конфига, подписант, SafeBags, примеры sgw-my-registry и sgw-IVI) — [docs/REGISTRY_BUILDER.md](docs/REGISTRY_BUILDER.md). Опорная DER-структура и совместимость с эталоном — [demo-original-container.p12](demo-original-container.p12).
+**Подробная инструкция** (формат конфига, подписант, SafeBags, примеры sgw-my-registry и sgw-IVI) — [docs/REGISTRY_BUILDER.md](docs/REGISTRY_BUILDER.md). Опорная DER-структура и совместимость с эталоном — [docs/REGISTRY_BUILDER_COMPATIBILITY.md](docs/REGISTRY_BUILDER_COMPATIBILITY.md).
 
 **Сборка:**
 
