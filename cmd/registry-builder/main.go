@@ -1,6 +1,6 @@
 // Пакет main — утилита сборки реестров ATOM-PKCS12-REGISTRY (registry-builder).
 // Создаёт реестры с той же структурой, что и Driver_Certificate_registry.p12 / IVI_Certificate_registry.p12 / owner_registry.p12.
-// Имя выходного файла должно начинаться с sgw-. Созданный реестр проверяется утилитой registry-analyzer.
+// Созданный реестр проверяется утилитой registry-analyzer.
 package main
 
 import (
@@ -12,7 +12,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,12 +20,12 @@ import (
 
 // Config — конфигурация сборки реестра (JSON).
 type Config struct {
-	SignerCert   string     `json:"signerCert"`
-	SignerKey    string     `json:"signerKey"`
-	VIN          string    `json:"vin"`
-	VERTimestamp string    `json:"verTimestamp"`
-	VERVersion   int       `json:"verVersion"`
-	UID          string    `json:"uid"`
+	SignerCert   string          `json:"signerCert"`
+	SignerKey    string          `json:"signerKey"`
+	VIN          string          `json:"vin"`
+	VERTimestamp string          `json:"verTimestamp"`
+	VERVersion   int             `json:"verVersion"`
+	UID          string          `json:"uid"`
 	SafeBags     []SafeBagConfig `json:"safeBags"`
 }
 
@@ -41,18 +40,12 @@ type SafeBagConfig struct {
 
 func main() {
 	configPath := flag.String("config", "", "Путь к JSON-конфигу (signerCert, signerKey, vin, verTimestamp, verVersion, uid, safeBags)")
-	outputPath := flag.String("output", "", "Выходной файл реестра (имя должно начинаться с sgw-)")
+	outputPath := flag.String("output", "", "Выходной файл реестра")
 	flag.Parse()
 
 	if *configPath == "" || *outputPath == "" {
-		fmt.Fprintf(os.Stderr, "Использование: %s -config <config.json> -output sgw-<name>.p12\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Использование: %s -config <config.json> -output <имя>.p12\n", os.Args[0])
 		flag.PrintDefaults()
-		os.Exit(1)
-	}
-
-	baseName := filepath.Base(*outputPath)
-	if !strings.HasPrefix(baseName, "sgw-") {
-		fmt.Fprintf(os.Stderr, "Имя выходного файла должно начинаться с sgw- (получено: %s)\n", baseName)
 		os.Exit(1)
 	}
 
@@ -86,10 +79,10 @@ func main() {
 	}
 
 	attrs := registry.SignerAttrs{
-		VIN:           cfg.VIN,
-		VERTimestamp:  verTime,
-		VERVersion:    cfg.VERVersion,
-		UID:           cfg.UID,
+		VIN:          cfg.VIN,
+		VERTimestamp: verTime,
+		VERVersion:   cfg.VERVersion,
+		UID:          cfg.UID,
 	}
 
 	der, err := registry.BuildRegistry(signerCert, signerKey, safeBags, attrs)
