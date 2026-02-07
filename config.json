@@ -1,1 +1,38 @@
-{"signerCert":"certs/signer.pem","signerKey":"certs/signer-key.pem","vin":"EAY2AT0MPS2013376","verTimestamp":"2024-01-15T17:40:20Z","verVersion":100,"uid":"emailAddress=client.a@atom.team,CN=Client A,OU=Sales,O=KAMA,L=SPb,ST=SPb,C=RU","safeBags":[{"cert":"certs/driver.pem","roleName":"delegate","roleNotBefore":"2026-01-15T17:40:20Z","roleNotAfter":"2027-01-15T17:40:20Z","localKeyID":"01933b2e7b3e7120a000000000000001"},{"cert":"certs/passenger.pem","roleName":"not_delegate","roleNotBefore":"2026-01-15T17:40:20Z","roleNotAfter":"2027-01-15T17:40:20Z","localKeyID":"01933b2e7b3e7120a000000000000002"},{"cert":"certs/ivi.pem","roleName":"delegate","roleNotBefore":"2026-01-15T17:40:21Z","roleNotAfter":"2027-01-15T17:40:21Z","localKeyID":"01933b2e7b3e7120a000000000000003"},{"cert":"certs/mobile-driver.pem","roleName":"driver-mobile","roleNotBefore":"2026-01-15T17:40:21Z","roleNotAfter":"2027-01-15T17:40:21Z","localKeyID":"01933b2e7b3e7120a000000000000004"}]}
+{
+  "signerCert": "certs/signer.pem",
+  "signerKey": "certs/signer-key.pem",
+  "vin": "EAY2AT0MPS2013376",
+  "verTimestamp": "2024-01-15T17:40:20Z",
+  "verVersion": 100,
+  "uid": "emailAddress=client.a@atom.team,CN=Client A,OU=Sales,O=KAMA,L=SPb,ST=SPb,C=RU",
+  "safeBags": [
+    {
+      "cert": "certs/driver.pem",
+      "roleName": "delegate",
+      "roleNotBefore": "2026-01-15T17:40:20Z",
+      "roleNotAfter": "2027-01-15T17:40:20Z",
+      "localKeyID": "01933b2e7b3e7120a000000000000001"
+    },
+    {
+      "cert": "certs/passenger.pem",
+      "roleName": "not_delegate",
+      "roleNotBefore": "2026-01-15T17:40:20Z",
+      "roleNotAfter": "2027-01-15T17:40:20Z",
+      "localKeyID": "01933b2e7b3e7120a000000000000002"
+    },
+    {
+      "cert": "certs/ivi.pem",
+      "roleName": "delegate",
+      "roleNotBefore": "2026-01-15T17:40:21Z",
+      "roleNotAfter": "2027-01-15T17:40:21Z",
+      "localKeyID": "01933b2e7b3e7120a000000000000003"
+    },
+    {
+      "cert": "certs/mobile-driver.pem",
+      "roleName": "driver-mobile",
+      "roleNotBefore": "2026-01-15T17:40:21Z",
+      "roleNotAfter": "2027-01-15T17:40:21Z",
+      "localKeyID": "01933b2e7b3e7120a000000000000004"
+    }
+  ]
+}

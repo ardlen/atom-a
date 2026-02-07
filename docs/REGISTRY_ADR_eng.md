@@ -255,7 +255,8 @@ When building registries, each SafeBag **bagAttributes** should include **localK
 - **Status:** Accepted
 - **Context:** Common attributes are needed to identify the registry (VIN, version, signer UID) and roles (role name, validity period).
 - **Decision:** Introduce enterprise attributes under **atom-attributes** (1.3.6.1.4.1.99999.1): **VIN**, **VER** (timestamp + versionNumber), **UID**, **roleName**, **roleValidityPeriod** (notBeforeTime, notAfterTime). They appear in **SignerInfo.authenticatedAttributes** and optionally in **SafeBag.bagAttributes**. Types and OIDs are defined in [registry.asn1](../registry.asn1); see [Appendix A](#appendix-a--format-reference-registryasn1).
-- **Consequences:** Signature verification must respect attribute order when computing messageDigest (RFC 5652). For reference-structure compatibility, **authenticatedAttributes** must use the **fixed order**: **contentType**, **VIN**, **VER**, **UID**, **messageDigest** (messageDigest last). Builders must not reorder these attributes by DER; see [ADR-011](#adr-011-reference-structure-compatibility-der-encoding). Role validity is checked via roleValidityPeriod.
+- **Level in container:** Attributes **VIN**, **VER**, **UID** are stored in **SignerInfo.authenticatedAttributes [0]**, i.e. at the **signer level** inside `SignedData.signerInfos` — not in eContent or SafeBag. The hierarchy is: `PFX → authSafe (ContentInfo) → content [0] (SignedData) → signerInfos → SignerInfo → authenticatedAttributes [0]`.
+- **Consequences:** Signature verification must respect attribute order when computing messageDigest (RFC 5652). Builders encode **authenticatedAttributes** as SET OF and **sort by DER** (X.690); see [ADR-011](#adr-011-reference-structure-compatibility-der-encoding). Role validity is checked via roleValidityPeriod.
 
 ---
 
@@ -298,7 +299,7 @@ When building registries, each SafeBag **bagAttributes** should include **localK
   - **encapContentInfo.eContent [0]:** Value is **OCTET STRING** (0x04 + length + SafeContents DER), i.e. SafeContents wrapped in OCTET STRING inside [0].
   - **SignedData.certificates [0]:** Value is the **full SET** TLV (0x31 + length + SET OF Certificate), not length+content only.
   - **SignerInfo.sid [0]:** **[0] EXPLICIT** with value **OCTET STRING** (0x04 + length + SubjectKeyIdentifier bytes).
-  - **authenticatedAttributes [0]:** Full SET (0x31...) unchanged; **element order** fixed: **contentType**, **VIN**, **VER**, **UID**, **messageDigest** (messageDigest last); no DER reordering of this set.
+  - **authenticatedAttributes [0]:** Full SET (0x31...); **element order** determined by **DER sort** (sortAttributesByDER) per X.690.
   - **unauthenticatedAttributes [1]:** Present as context tag **[1]** with an **empty SET** (0x31 0x00) when building for reference compatibility.
 - **Consequences:** Parsers must accept both the reference encoding and (where applicable) legacy IMPLICIT forms for backward compatibility. The reference structure is described in [REGISTRY_BUILDER_COMPATIBILITY.md](REGISTRY_BUILDER_COMPATIBILITY.md); comparison with OpenSSL asn1parse is in [ASN1PARSE_COMPARISON.md](ASN1PARSE_COMPARISON.md).
 
@@ -368,7 +369,7 @@ flowchart TB
 - **PFX (PKCS#12):** version (3), authSafe (ContentInfo), macData (optional). authSafe is a single ContentInfo object (in ATOM-PKCS12-REGISTRY, not SEQUENCE OF ContentInfo).
 - **ContentInfo (authSafe):** contentType = id-signedData (1.2.840.113549.1.7.2); content [0] — full SignedData TLV (0x30 + length + body) for reference structure (ADR-011).
 - **SignedData (CMS):** version, digestAlgorithms (SET OF AlgorithmIdentifier); encapContentInfo: eContentType = id-data (pkcs7-data), eContent [0] = OCTET STRING (0x04 + length + SafeContents DER, decodes to SafeContents); certificates [0] optional, full SET TLV (0x31 + length + SET OF Certificate); signerInfos = SET OF SignerInfo.
-- **SignerInfo:** sid — [0] EXPLICIT OCTET STRING (SubjectKeyIdentifier); authenticatedAttributes — SET OF Attribute in fixed order (contentType, VIN, VER, UID, messageDigest); digestAlgorithm, digestEncryptionAlgorithm, encryptedDigest; unauthenticatedAttributes [1] — optional, empty SET in reference structure.
+- **SignerInfo:** sid — [0] EXPLICIT OCTET STRING (SubjectKeyIdentifier); authenticatedAttributes — SET OF Attribute, **sorted by DER** in the builder; digestAlgorithm, digestEncryptionAlgorithm, encryptedDigest; unauthenticatedAttributes [1] — optional, empty SET in reference structure.
 - **SafeContents:** SEQUENCE OF SafeBag.
 - **SafeBag:** bagId = id-certBag, bagValue [0] = CertBag, bagAttributes (optional). CertBag: certId (certificate type), certValue [0] = OCTET STRING (X.509 DER). bagAttributes — roleName, roleValidityPeriod (GeneralizedTime), localKeyID (OCTET STRING), friendlyName (optional).
 - **Encoding:** certificates in SignedData in ASN.1 are [0] IMPLICIT; implementation may use SET or SEQUENCE. DER lengths use the minimum number of bytes. authenticatedAttributes are encoded as SET OF and participate in messageDigest calculation.
@@ -387,10 +388,10 @@ SignerInfo also includes standard attributes: contentType (pkcs9), messageDigest
 
 ### Encoding
 
-- **Reference structure (ADR-011):** content [0] = full SignedData TLV; eContent [0] = OCTET STRING (0x04 + SafeContents); certificates [0] = full SET TLV; sid [0] = EXPLICIT OCTET STRING; authenticatedAttributes in fixed order (contentType, VIN, VER, UID, messageDigest); unauthenticatedAttributes [1] = empty SET when building for compatibility. See [REGISTRY_BUILDER_COMPATIBILITY.md](REGISTRY_BUILDER_COMPATIBILITY.md).
+- **Reference structure (ADR-011):** content [0] = full SignedData TLV; eContent [0] = EXPLICIT OCTET STRING (constructed [0] containing 0x04 + SafeContents); certificates [0] = full SET TLV (0x31...); sid [0] = EXPLICIT OCTET STRING (0xA0 + OCTET STRING with SubjectKeyIdentifier); authenticatedAttributes = SET OF Attribute, **sorted by DER** (X.690) before marshalling; unauthenticatedAttributes [1] = empty SET when building for compatibility. See [REGISTRY_BUILDER_COMPATIBILITY.md](REGISTRY_BUILDER_COMPATIBILITY.md).
 - certificates in SignedData: [0]; value is full SET TLV (0x31...) in reference encoding.
 - DER lengths — minimum number of bytes.
-- authenticatedAttributes — SET OF, fixed order for builders; participate in messageDigest calculation (RFC 5652).
+- authenticatedAttributes — SET OF; builders **sort by DER** (sortAttributesByDER); participate in messageDigest calculation (RFC 5652). SafeBag bagAttributes and SignedData certificates are also DER-sorted.
 
 ---
 
@@ -416,7 +417,7 @@ Requirements are derived from the behaviour of registry-analyzer, registry-build
 ### 3. Building registries (.p12)
 
 - Config: signerCert, signerKey (PEM), VIN, VER, UID, safeBags (cert, roleName, roleNotBefore/roleNotAfter, localKeyID). Format — [REGISTRY_BUILDER.md](REGISTRY_BUILDER.md), example [registry-builder-config.example.json](registry-builder-config.example.json).
-- Signer in certificates; SignerInfo with sid = SubjectKeyIdentifier (EXPLICIT OCTET STRING in [0]), authenticatedAttributes in **fixed order**: contentType, VIN, VER, UID, messageDigest (messageDigest last); unauthenticatedAttributes [1] as empty SET for reference structure; ECDSA P-256. DER encoding must follow the reference structure (full SignedData in content [0], OCTET STRING eContent, full SET in certificates [0]); see [ADR-011](#adr-011-reference-structure-compatibility-der-encoding) and [REGISTRY_BUILDER_COMPATIBILITY.md](REGISTRY_BUILDER_COMPATIBILITY.md).
+- Signer in certificates; SignerInfo with sid = SubjectKeyIdentifier (EXPLICIT OCTET STRING in [0]), authenticatedAttributes as SET OF **sorted by DER**; unauthenticatedAttributes [1] as empty SET for reference structure; ECDSA P-256. DER encoding must follow the reference structure (full SignedData in content [0], EXPLICIT OCTET STRING eContent, full SET in certificates [0]); see [ADR-011](#adr-011-reference-structure-compatibility-der-encoding) and [REGISTRY_BUILDER_COMPATIBILITY.md](REGISTRY_BUILDER_COMPATIBILITY.md).
 - SafeBags: bagId = id-certBag, CertBag (x509Certificate), bagAttributes (roleName, roleValidityPeriod, localKeyID).
 - Output file name with sgw- prefix. After build — verify by parsing (registry-analyzer).
 

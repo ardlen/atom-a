@@ -2,11 +2,11 @@
 
 Проект содержит три утилиты:
 
-- **registry-analyzer** — разбор контейнеров **ATOM-PKCS12-REGISTRY** (гибрид PKCS#12 PFX и CMS SignedData): сертификаты, подписант, мешки SafeBag (eContent) и ATOM-атрибуты подписантов.
-- **registry-builder** — создание реестров .p12 в формате ATOM-PKCS12-REGISTRY по JSON-конфигу.
+-  **registry-analyzer** — разбор контейнеров **ATOM-PKCS12-REGISTRY** (гибрид PKCS#12 PFX и CMS SignedData): сертификаты, подписант, мешки SafeBag (eContent) и ATOM-атрибуты подписантов. Утилита позволяет вывести на экран описание структуры данных контейнера и содержимое контейнеров.
+- **registry-builder** — создание реестров .p12 в формате ATOM-PKCS12-REGISTRY по JSON-конфигу. Создаёт наборы сертификатов с заполнением структур: **SignerInfo.authenticatedAttributes [0]** (VIN, VER, UID на уровне подписанта), **eContent** → SafeBag (роль, периоды действия ролей, localKeyID). Формат вывода соответствует опорной DER-структуре ([ADR-011](docs/REGISTRY_ADR.md#adr-011-совместимость-опорной-структуры-der-кодирование)).
 - **p7-analyzer** — анализ контейнеров **CMS/PKCS#7** (.p7): списки пининга сертификатов без обёртки PFX.
 
-Структура формата ATOM-PKCS12-REGISTRY описана в [registry.asn1](registry.asn1). Workflow и инструкции — в папке [docs/](docs/).
+Структура формата ATOM-PKCS12-REGISTRY описана в [registry.asn1](registry.asn1). Архитектурные решения (ADR) — [docs/REGISTRY_ADR.md](docs/REGISTRY_ADR.md), [docs/REGISTRY_ADR_eng.md](docs/REGISTRY_ADR_eng.md). Workflow и инструкции — в папке [docs/](docs/).
 
 ---
 
@@ -22,7 +22,7 @@
 - [Проверка через OpenSSL](#проверка-через-openssl)
 - [Тесты](#тесты)
 
-Детальный workflow анализа контейнера — в [docs/WORKFLOW.md](docs/WORKFLOW.md). Анализ формата .p7 — в [docs/PKCS7_CMS_ANALYSIS.md](docs/PKCS7_CMS_ANALYSIS.md).
+Детальный workflow анализа контейнера — в [docs/WORKFLOW.md](docs/WORKFLOW.md). Анализ формата .p7 — в [docs/PKCS7_CMS_ANALYSIS.md](docs/PKCS7_CMS_ANALYSIS.md). Совместимость опорной структуры — [docs/REGISTRY_BUILDER_COMPATIBILITY.md](docs/REGISTRY_BUILDER_COMPATIBILITY.md), [docs/ASN1PARSE_COMPARISON.md](docs/ASN1PARSE_COMPARISON.md).
 
 ---
 
@@ -145,9 +145,9 @@ go run ./cmd/p7-analyzer -format json -output report.json файл.p7
 | `-no-color`                 | Отключить цвета и иконки                                                                                                                                                         | выкл                |
 | `-color`                    | Цвет:`auto` (только TTY), `always`, `never`                                                                                                                                           | `auto`                |
 
-### Пример вывода (text)
+### Вывод (данные реестра)
 
-При выводе в TTY используются иконки и ANSI-цвета. Флаг `-no-color` или `-color=never` отключает оформление; в начале вывода выводится ANSI Reset для сброса состояния терминала.
+При выводе в TTY используются иконки и ANSI-цвета. Флаг `-no-color` или `-color=never` отключает оформление.
 
 - **PFX** — версия и contentType (pkcs7-signedData).
 - **Certificates** — список сертификатов из SignedData (subject, issuer, serial, срок действия, KeyAlg, SubjectKeyId). Сертификат, которым подписан контейнер, помечен как «подписант контейнера».
@@ -199,7 +199,7 @@ go run ./cmd/p7-analyzer -format json -output report.json файл.p7
 
 Утилита **registry-builder** создаёт реестры на основе структуры данных `registry.asn1`, укажите имя выходного файла реестра. Все созданные реестры проверяются утилитой **registry-analyzer**.
 
-**Подробная инструкция** (формат конфига, подписант, SafeBags, примеры sgw-my-registry и sgw-IVI) — [docs/REGISTRY_BUILDER.md](docs/REGISTRY_BUILDER.md).
+**Подробная инструкция** (формат конфига, подписант, SafeBags, примеры sgw-my-registry и sgw-IVI) — [docs/REGISTRY_BUILDER.md](docs/REGISTRY_BUILDER.md). Опорная DER-структура и совместимость с эталоном — [demo-original-container.p12](demo-original-container.p12).
 
 **Сборка:**
 
@@ -244,10 +244,14 @@ go build -o registry-builder ./cmd/registry-builder
 | `internal/cms/`                 | Разбор CMS/PKCS#7 (.p7): parse.go, types.go, output.go, doc.go. ParseCMS, ParseCMSFromPEM, ToAllPEM, экспорт по cert/econtent.                  |
 | `registry.asn1`                 | Спецификация формата ATOM-PKCS12-REGISTRY.                                                                                                  |
 | `docs/WORKFLOW.md`              | Workflow анализа контейнера PKCS#12.                                                                                                          |
-| `docs/REGISTRY_BUILDER.md`      | Инструкция по registry-builder (конфиг, SafeBags, примеры).                                                                           |
-| `docs/PKCS7_CMS_ANALYSIS.md`    | Анализ формата CMS (.p7), опции выгрузки p7-analyzer.                                                                                |
-| `docs/OPENSSL_VERIFY.md`        | Проверка контейнера и сертификатов через OpenSSL.                                                                          |
-| `docs/CODE_IMPROVEMENTS.md`     | Рекомендации по улучшению кода (Go best practices).                                                                                 |
+| `docs/REGISTRY_ADR.md`          | Архитектурные решения (ADR) — русская версия.                                                                                                  |
+| `docs/REGISTRY_ADR_eng.md`      | Architectural Decision Records (ADR) — английская версия.                                                                                       |
+| `docs/REGISTRY_BUILDER.md`      | Инструкция по registry-builder (конфиг, SafeBags, примеры).                                                                                     |
+| `docs/REGISTRY_BUILDER_COMPATIBILITY.md` | Опорная DER-структура vs вывод builder; рекомендации по выравниванию.                                                         |
+| `docs/ASN1PARSE_COMPARISON.md`  | Сравнение openssl asn1parse: опорный vs собранный реестр.                                                                                       |
+| `docs/PKCS7_CMS_ANALYSIS.md`    | Анализ формата CMS (.p7), опции выгрузки p7-analyzer.                                                                                           |
+| `docs/OPENSSL_VERIFY.md`        | Проверка контейнера и сертификатов через OpenSSL.                                                                                               |
+| `docs/CODE_IMPROVEMENTS.md`     | Рекомендации по улучшению кода (Go best practices).                                                                                             |
 
 ---
 
@@ -256,7 +260,8 @@ go build -o registry-builder ./cmd/registry-builder
 - **Внешняя оболочка:** PFX (PKCS#12), `version = 3`, поле `authSafe` — один **ContentInfo** с `contentType = pkcs7-signedData`.
 - **Содержимое content:** CMS **SignedData** (алгоритмы хеширования, encapContentInfo, сертификаты, подписи).
 - **eContent (encapContentInfo):** тип `pkcs7-data`, значение — OCTET STRING = **SafeContents** (SEQUENCE OF SafeBag).
-- В **SignerInfo.authenticatedAttributes** — кастомные атрибуты ATOM (OID 1.3.6.1.4.1.99999.1.x): VIN, VER, UID, roleName, roleValidityPeriod.
+- **SignerInfo.authenticatedAttributes [0]:** атрибуты ATOM (OID 1.3.6.1.4.1.99999.1.x) на уровне подписанта — **VIN**, **VER**, **UID**, roleName, roleValidityPeriod. Они хранятся в `SignedData.signerInfos → SignerInfo`, а не в eContent или SafeBag.
+- **Опорная структура (ADR-011):** registry-builder создаёт реестры с канонической DER-структурой (полный SignedData в content [0], OCTET STRING eContent, SET в certificates [0], EXPLICIT sid, сортировка authenticatedAttributes по DER). Подробности — [docs/REGISTRY_ADR.md](docs/REGISTRY_ADR.md#adr-011-совместимость-опорной-структуры-der-кодирование).
 
 ---
 
@@ -290,5 +295,6 @@ go test ./...
 
 ---
 
-ATOM CA Team 2025
-# atom-a
+# ATOM SA Team 2025
+
+

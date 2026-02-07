@@ -17,7 +17,8 @@
 | [ADR-007](#adr-007-атрибуты-atom-vin-ver-uid-rolename-rolevalidityperiod)               | Атрибуты ATOM (VIN, VER, UID, roleName, roleValidityPeriod)       |
 | [ADR-008](#adr-008-именование-и-сборка-реестров)                       | Именование и сборка реестров                     |
 | [ADR-009](#adr-009-разбор-без-пароля-macdata-опционально)             | Разбор без пароля (macData опционально)         |
-| [ADR-010](#adr-010-конфигурация-утилит-флаги-и-конфиг-без-env) | Поддержка формата .p7 отдельно от .p12          |
+| [ADR-010](#adr-010-поддержка-формата-p7-отдельно-от-p12) | Поддержка формата .p7 отдельно от .p12          |
+| [ADR-011](#adr-011-совместимость-опорной-структуры-der-кодирование) | Совместимость опорной структуры (DER-кодирование) |
 
 Дополнительно: [Приложение A — Справочник формата](#приложение-a--справочник-формата-registryasn1), [Приложение B — Требования к сервисам](#приложение-b--требования-к-сервисам), [Ссылки](#ссылки-на-документацию).
 
@@ -45,8 +46,8 @@
 
 - **Статус:** Принято
 - **Контекст:** Нужна криптографическая подпись и явная структура подписанных данных (алгоритмы, сертификаты, подписанты).
-- **Решение:** Содержимое **content** в ContentInfo — **SignedData** (CMS): **digestAlgorithms**, **encapContentInfo** (eContent), **certificates**, **signerInfos**. Блок от ContentInfo до конца signerInfos образует **один непрерывный фрагмент CMS** внутри authSafe.
-- **Последствия:** Реализации опираются на RFC 5652 для проверки подписи и порядка атрибутов. eContent трактуется по eContentType (в реестре — pkcs7-data).
+- **Решение:** Содержимое **content** в ContentInfo — **SignedData** (CMS): **digestAlgorithms**, **encapContentInfo** (eContent), **certificates**, **signerInfos**. Блок от ContentInfo до конца signerInfos образует **один непрерывный фрагмент CMS** внутри authSafe. Для совместимости с опорной структурой (см. [ADR-011](#adr-011-совместимость-опорной-структуры-der-кодирование)) **ContentInfo.content [0]** содержит **полный SignedData TLV** (тег 0x30 SEQUENCE + длина + тело), а не только тело SEQUENCE.
+- **Последствия:** Реализации опираются на RFC 5652 для проверки подписи и порядка атрибутов. eContent трактуется по eContentType (в реестре — pkcs7-data). Парсеры должны принимать как опорную форму (полный SignedData), так и (для совместимости) форму только с телом в content [0].
 
 **Диаграмма иерархии контейнера (.p12) — полная:**
 
@@ -229,8 +230,8 @@ flowchart LR
 
 - **Статус:** Принято
 - **Контекст:** В SignerInfo подписант может быть задан IssuerAndSerialNumber или SubjectKeyIdentifier. Нужен однозначный и простой способ находить сертификат подписанта.
-- **Решение:** В формате реестра в **SignerInfo.sid** используется вариант **[0] SubjectKeyIdentifier** (OCTET STRING). Сервис определяет сертификат подписанта поиском в **SignedData.certificates** сертификата с совпадающим расширением SubjectKeyId.
-- **Последствия:** Все парсеры и проверки подписи должны извлекать SubjectKeyId из sid и искать соответствующий сертификат в certificates. IssuerAndSerialNumber в данном формате не используется.
+- **Решение:** В формате реестра в **SignerInfo.sid** используется вариант **[0] SubjectKeyIdentifier**: контекстный тег [0] **EXPLICIT** со значением **OCTET STRING** (0x04 + длина + 20 байт SKID). Сервис определяет сертификат подписанта поиском в **SignedData.certificates** сертификата с совпадающим расширением SubjectKeyId. См. [ADR-011](#adr-011-совместимость-опорной-структуры-der-кодирование).
+- **Последствия:** Все парсеры и проверки подписи должны извлекать SubjectKeyId из sid (включая случай кодирования как OCTET STRING внутри [0]) и искать соответствующий сертификат в certificates. IssuerAndSerialNumber в данном формате не используется.
 
 ---
 
@@ -239,7 +240,8 @@ flowchart LR
 - **Статус:** Принято
 - **Контекст:** Нужны единые атрибуты для идентификации реестра (VIN, версия, UID подписанта) и ролей (имя роли, срок действия).
 - **Решение:** Ввести enterprise-атрибуты под веткой **atom-attributes** (1.3.6.1.4.1.99999.1): **VIN**, **VER** (timestamp + versionNumber), **UID**, **roleName**, **roleValidityPeriod** (notBeforeTime, notAfterTime). Они размещаются в **SignerInfo.authenticatedAttributes** и при необходимости в **SafeBag.bagAttributes**. Типы и OID заданы в [registry.asn1](../registry.asn1); см. [Приложение A](#приложение-a--справочник-формата-registryasn1).
-- **Последствия:** Проверка подписи должна учитывать порядок атрибутов при расчёте messageDigest (RFC 5652). Сервисы, собирающие реестры, обязаны формировать authenticatedAttributes в том же порядке. Сроки ролей проверяются по roleValidityPeriod.
+- **Уровень в контейнере:** Атрибуты **VIN**, **VER**, **UID** хранятся в **SignerInfo.authenticatedAttributes [0]**, т.е. на **уровне подписанта** внутри `SignedData.signerInfos` — не в eContent или SafeBag. Иерархия: `PFX → authSafe (ContentInfo) → content [0] (SignedData) → signerInfos → SignerInfo → authenticatedAttributes [0]`.
+- **Последствия:** Проверка подписи должна учитывать порядок атрибутов при расчёте messageDigest (RFC 5652). Сборщики кодируют **authenticatedAttributes** как SET OF и **сортируют по DER** (X.690); см. [ADR-011](#adr-011-совместимость-опорной-структуры-der-кодирование). Сроки ролей проверяются по roleValidityPeriod.
 
 ---
 
@@ -251,7 +253,7 @@ flowchart LR
   - Выходные файлы реестров создаются  на основе структуры  ASN.1 (registry.asn1 ). Для реестров типа ***owner*** - имя файла : owner.p12, для реестров типа ***regular*** - имя файла содержит : [имя пользователя/сервиса из реестра ***owner***] +regular.p12 , как пример : ivi_user-regular.p12
   - Сборка: подписант (сертификат + ключ PEM), атрибуты подписанта (VIN, VER, UID), список SafeBags (сертификат + roleName, roleNotBefore/roleNotAfter, localKeyID). Конфиг — JSON по [REGISTRY_BUILDER.md](REGISTRY_BUILDER.md).
   - Криптография: ECDSA P-256, SHA-256 в текущей реализации. Созданный реестр должен успешно разбираться registry-analyzer.
-- **Последствия:** Интеграции и скрипты могут полагаться на префикс sgw- для обнаружения реестров. Эталон сборки — internal/registry/builder.go.
+- **Последствия:** Интеграции и скрипты могут полагаться на префикс sgw- для обнаружения реестров. Эталон сборки — internal/registry/builder.go. Сборщик создаёт реестры с **опорной структурой** (полный SignedData в content [0], OCTET STRING eContent, полный SET в certificates [0], EXPLICIT OCTET STRING sid, фиксированный порядок атрибутов, опционально unauthenticatedAttributes [1] как пустой SET); см. [ADR-011](#adr-011-совместимость-опорной-структуры-der-кодирование) и [REGISTRY_BUILDER_COMPATIBILITY.md](REGISTRY_BUILDER_COMPATIBILITY.md).
 
 ---
 
@@ -264,12 +266,27 @@ flowchart LR
 
 ---
 
-## ADR-10: Поддержка формата .p7 отдельно от .p12
+## ADR-010: Поддержка формата .p7 отдельно от .p12
 
 - **Статус:** Принято
 - **Контекст:** Существуют контейнеры «голого» CMS (.p7) без обёртки PFX, в т.ч. с eContent в виде PEM-сертификатов (списки пининга), а не SafeContents.
 - **Решение:** Формат **.p7** рассматривать как **отдельный** от реестров .p12. Сервисам, работающим только с ATOM-PKCS12-REGISTRY, достаточно поддержки формата по registry.asn1. Для анализа .p7 предусмотрена отдельная утилита **p7-analyzer**; общие принципы CMS (SignedData.certificates, eContent, идентификация подписанта по SubjectKeyIdentifier) сохраняются. При JSON-выводе для .p7 включать поле **pem** у каждого сертификата.
 - **Последствия:** Два формата документируются и обрабатываются раздельно; при необходимости поддержки обоих в одном сервисе это явно указывается в документации.
+
+---
+
+## ADR-011: Совместимость опорной структуры (DER-кодирование)
+
+- **Статус:** Принято
+- **Контекст:** Совместимость и проверка (например, с OpenSSL asn1parse и другими утилитами) требуют, чтобы реестры следовали определённой DER-структуре. Опорный контейнер (например, demo-original-container) использовался для определения канонического кодирования.
+- **Решение:** **registry-builder** создаёт реестры, чья DER-структура соответствует опорной:
+  - **ContentInfo.content [0]:** Полный **SignedData** TLV (тег 0x30 SEQUENCE + длина + тело), не только тело без тега.
+  - **encapContentInfo.eContent [0]:** Значение — **OCTET STRING** (0x04 + длина + DER SafeContents), т.е. SafeContents обёрнуты в OCTET STRING внутри [0].
+  - **SignedData.certificates [0]:** Значение — **полный SET** TLV (0x31 + длина + SET OF Certificate), не только длина+содержимое.
+  - **SignerInfo.sid [0]:** **[0] EXPLICIT** со значением **OCTET STRING** (0x04 + длина + байты SubjectKeyIdentifier).
+  - **authenticatedAttributes [0]:** Полный SET (0x31...); **порядок элементов** определяется **сортировкой по DER** (sortAttributesByDER) по X.690.
+  - **unauthenticatedAttributes [1]:** Присутствует как контекстный тег **[1]** с **пустым SET** (0x31 0x00) при сборке для совместимости с опорной структурой.
+- **Последствия:** Парсеры должны принимать как опорное кодирование, так и (где применимо) устаревшие IMPLICIT-формы для обратной совместимости. Опорная структура описана в [REGISTRY_BUILDER_COMPATIBILITY.md](REGISTRY_BUILDER_COMPATIBILITY.md); сравнение с OpenSSL asn1parse — в [ASN1PARSE_COMPARISON.md](ASN1PARSE_COMPARISON.md).
 
 ---
 
@@ -335,12 +352,19 @@ flowchart TB
 ### Структуры по registry.asn1 (полное описание)
 
 - **PFX (PKCS#12):** version (3), authSafe (ContentInfo), macData (опционально). authSafe — один объект ContentInfo (в ATOM-PKCS12-REGISTRY не SEQUENCE OF ContentInfo).
-- **ContentInfo (authSafe):** contentType = id-signedData (1.2.840.113549.1.7.2); content [0] — тело типа SignedData (CMS).
-- **SignedData (CMS):** version, digestAlgorithms (SET OF AlgorithmIdentifier); encapContentInfo: eContentType = id-data (pkcs7-data), eContent [0] = OCTET STRING (после декодирования — SafeContents); certificates [0] — опционально, SET OF Certificate (X.509 DER); signerInfos — SET OF SignerInfo.
-- **SignerInfo:** sid — в формате реестра [0] SubjectKeyIdentifier; authenticatedAttributes — SET OF Attribute (contentType, messageDigest, атрибуты ATOM); digestAlgorithm, digestEncryptionAlgorithm, encryptedDigest.
+- **ContentInfo (authSafe):** contentType = id-signedData (1.2.840.113549.1.7.2); content [0] — полный SignedData TLV (0x30 + длина + тело) для опорной структуры (ADR-011).
+- **SignedData (CMS):** version, digestAlgorithms (SET OF AlgorithmIdentifier); encapContentInfo: eContentType = id-data (pkcs7-data), eContent [0] = OCTET STRING (0x04 + длина + DER SafeContents, после декодирования — SafeContents); certificates [0] — опционально, полный SET TLV (0x31 + длина + SET OF Certificate); signerInfos — SET OF SignerInfo.
+- **SignerInfo:** sid — [0] EXPLICIT OCTET STRING (SubjectKeyIdentifier); authenticatedAttributes — SET OF Attribute, **сортировка по DER** в сборщике; digestAlgorithm, digestEncryptionAlgorithm, encryptedDigest; unauthenticatedAttributes [1] — опционально, пустой SET в опорной структуре.
 - **SafeContents:** SEQUENCE OF SafeBag.
 - **SafeBag:** bagId = id-certBag, bagValue [0] = CertBag, bagAttributes (опционально). CertBag: certId (тип сертификата), certValue [0] = OCTET STRING (DER X.509). bagAttributes — roleName, roleValidityPeriod (GeneralizedTime), localKeyID (OCTET STRING), friendlyName (опционально).
-- **Кодирование:** certificates в SignedData в ASN.1 — [0] IMPLICIT; в реализации может использоваться SET или SEQUENCE. Длины в DER — минимальное число байт. authenticatedAttributes кодируются как SET OF и участвуют в расчёте messageDigest.
+- **Кодирование:** certificates в SignedData в ASN.1 — [0] IMPLICIT; в реализации может использоваться SET или SEQUENCE. Длины в DER — минимальное число байт. authenticatedAttributes кодируются как SET OF, участвуют в расчёте messageDigest; сборщики **сортируют по DER** (sortAttributesByDER).
+
+### Кодирование (опорная структура ADR-011)
+
+- **Опорная структура (ADR-011):** content [0] = полный SignedData TLV; eContent [0] = EXPLICIT OCTET STRING (constructed [0] содержит 0x04 + SafeContents); certificates [0] = полный SET TLV (0x31...); sid [0] = EXPLICIT OCTET STRING (0xA0 + OCTET STRING с SubjectKeyIdentifier); authenticatedAttributes = SET OF Attribute, **сортировка по DER** (X.690) перед маршалингом; unauthenticatedAttributes [1] = пустой SET при сборке для совместимости. См. [REGISTRY_BUILDER_COMPATIBILITY.md](REGISTRY_BUILDER_COMPATIBILITY.md).
+- certificates в SignedData: [0]; значение — полный SET TLV (0x31...) при опорном кодировании.
+- Длины в DER — минимальное число байт.
+- authenticatedAttributes — SET OF; сборщики **сортируют по DER** (sortAttributesByDER); участвуют в расчёте messageDigest (RFC 5652). bagAttributes в SafeBag и certificates в SignedData также сортируются по DER.
 
 ### Атрибуты ATOM (типы значений) — полная таблица
 
@@ -353,12 +377,6 @@ flowchart TB
 | roleValidityPeriod | 1.3.6.1.4.1.99999.1.5 | SEQUENCE { notBeforeTime GeneralizedTime, notAfterTime GeneralizedTime } | Срок действия роли                                     |
 
 В SignerInfo также присутствуют стандартные атрибуты: contentType (pkcs9), messageDigest (OCTET STRING).
-
-### Кодирование
-
-- certificates в SignedData: [0] IMPLICIT; в реализации — SET или SEQUENCE.
-- Длины в DER — минимальное число байт.
-- authenticatedAttributes — SET OF, участвуют в расчёте messageDigest (RFC 5652).
 
 ---
 
@@ -384,7 +402,7 @@ flowchart TB
 ### 3. Сборка реестров (.p12)
 
 - Конфиг: signerCert, signerKey (PEM), VIN, VER, UID, safeBags (cert, roleName, roleNotBefore/roleNotAfter, localKeyID). Формат — [REGISTRY_BUILDER.md](REGISTRY_BUILDER.md), пример [registry-builder-config.example.json](registry-builder-config.example.json).
-- Подписант в certificates; SignerInfo с sid = SubjectKeyIdentifier, authenticatedAttributes в порядке для проверки подписи; ECDSA P-256.
+- Подписант в certificates; SignerInfo с sid = SubjectKeyIdentifier (EXPLICIT OCTET STRING в [0]), authenticatedAttributes как SET OF **сортировка по DER**; unauthenticatedAttributes [1] как пустой SET для опорной структуры; ECDSA P-256. DER-кодирование должно следовать опорной структуре (полный SignedData в content [0], EXPLICIT OCTET STRING eContent, полный SET в certificates [0]); см. [ADR-011](#adr-011-совместимость-опорной-структуры-der-кодирование) и [REGISTRY_BUILDER_COMPATIBILITY.md](REGISTRY_BUILDER_COMPATIBILITY.md).
 - SafeBags: bagId = id-certBag, CertBag (x509Certificate), bagAttributes (roleName, roleValidityPeriod, localKeyID).
 - Имя выходного файла с префиксом sgw-. После сборки — проверка разбором (registry-analyzer).
 
@@ -424,6 +442,8 @@ flowchart TB
 | [README.md](../README.md)                      | Обзор утилит, запуск, опции.                                    |
 | [WORKFLOW.md](WORKFLOW.md)                     | Пошаговый workflow анализа контейнера PKCS#12.              |
 | [REGISTRY_BUILDER.md](REGISTRY_BUILDER.md)     | Инструкция по registry-builder (конфиг, SafeBags, примеры).  |
+| [REGISTRY_BUILDER_COMPATIBILITY.md](REGISTRY_BUILDER_COMPATIBILITY.md) | Опорная структура vs вывод сборщика; рекомендации по выравниванию. |
+| [ASN1PARSE_COMPARISON.md](ASN1PARSE_COMPARISON.md) | Сравнение openssl asn1parse: опорный vs собранный реестр. |
 | [PKCS7_CMS_ANALYSIS.md](PKCS7_CMS_ANALYSIS.md) | Анализ формата CMS (.p7), отличия от .p12.                      |
 | [OPENSSL_VERIFY.md](OPENSSL_VERIFY.md)         | Проверка контейнера и сертификатов через OpenSSL. |
 
