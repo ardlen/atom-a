@@ -1,6 +1,11 @@
 // Пакет main — утилита сборки реестров ATOM-PKCS12-REGISTRY (registry-builder).
-// Создаёт реестры с той же структурой, что и Driver_Certificate_registry.p12 / IVI_Certificate_registry.p12 / owner_registry.p12.
-// Созданный реестр проверяется утилитой registry-analyzer.
+//
+// registry-builder создаёт .p12 контейнеры по JSON-конфигу: подписант (сертификат + ключ ECDSA),
+// атрибуты подписанта (VIN, VER, UID), список SafeBags (сертификаты ролей с roleName, roleValidityPeriod, localKeyID).
+// Структура вывода соответствует эталону (полный SignedData в content [0], OCTET STRING eContent, сортировка атрибутов по DER).
+// Созданный реестр можно проверить утилитой registry-analyzer.
+//
+// Запуск: go run ./cmd/registry-builder -config <config.json> -output <имя>.p12
 package main
 
 import (
@@ -40,15 +45,17 @@ type SafeBagConfig struct {
 
 func main() {
 	configPath := flag.String("config", "", "Путь к JSON-конфигу (signerCert, signerKey, vin, verTimestamp, verVersion, uid, safeBags)")
-	outputPath := flag.String("output", "", "Выходной файл реестра")
+	outputPath := flag.String("output", "", "Выходной файл реестра (.p12)")
 	flag.Parse()
 
+	// Оба параметра обязательны.
 	if *configPath == "" || *outputPath == "" {
 		fmt.Fprintf(os.Stderr, "Использование: %s -config <config.json> -output <имя>.p12\n", os.Args[0])
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
 
+	// Загрузка и разбор JSON-конфига.
 	data, err := os.ReadFile(*configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "чтение конфига: %v\n", err)
@@ -61,23 +68,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Загрузка сертификата и ключа подписанта из PEM-файлов.
 	signerCert, signerKey, err := loadSigner(cfg.SignerCert, cfg.SignerKey)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "загрузка подписанта: %v\n", err)
 		os.Exit(1)
 	}
 
+	// Загрузка сертификатов ролей и атрибутов мешков из конфига.
 	safeBags, err := loadSafeBags(cfg.SafeBags)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "загрузка SafeBags: %v\n", err)
 		os.Exit(1)
 	}
 
+	// Парсинг времени версии (опционально).
 	verTime := time.Time{}
 	if cfg.VERTimestamp != "" {
 		verTime, _ = time.Parse(time.RFC3339, cfg.VERTimestamp)
 	}
 
+	// Атрибуты подписанта для SignerInfo.authenticatedAttributes [0] (VIN, VER, UID).
 	attrs := registry.SignerAttrs{
 		VIN:          cfg.VIN,
 		VERTimestamp: verTime,
@@ -85,12 +96,14 @@ func main() {
 		UID:          cfg.UID,
 	}
 
+	// Сборка DER-кодированного PFX (PFX → authSafe ContentInfo → SignedData → signerInfos, eContent, certificates).
 	der, err := registry.BuildRegistry(signerCert, signerKey, safeBags, attrs)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "сборка реестра: %v\n", err)
 		os.Exit(1)
 	}
 
+	// Запись результата в выходной файл.
 	if err := os.WriteFile(*outputPath, der, 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "запись %s: %v\n", *outputPath, err)
 		os.Exit(1)
@@ -100,6 +113,8 @@ func main() {
 	fmt.Fprintf(os.Stderr, "Проверка: ./registry-analyzer %s\n", *outputPath)
 }
 
+// loadSigner загружает сертификат подписанта и приватный ключ ECDSA из PEM-файлов.
+// Возвращает (*x509.Certificate, *ecdsa.PrivateKey, error). Ключ должен соответствовать публичному ключу сертификата.
 func loadSigner(certPath, keyPath string) (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	certPEM, err := os.ReadFile(certPath)
 	if err != nil {
@@ -130,6 +145,8 @@ func loadSigner(certPath, keyPath string) (*x509.Certificate, *ecdsa.PrivateKey,
 	return cert, key, nil
 }
 
+// loadSafeBags преобразует конфиг мешков в формат registry.SafeBagInput.
+// Для каждого мешка: читает сертификат из PEM, парсит roleNotBefore/roleNotAfter (RFC3339), декодирует localKeyID (hex).
 func loadSafeBags(cfgs []SafeBagConfig) ([]registry.SafeBagInput, error) {
 	var out []registry.SafeBagInput
 	for i, c := range cfgs {

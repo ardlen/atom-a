@@ -1,3 +1,4 @@
+// safebag.go — разбор SafeBag, CertBag и атрибутов мешка (roleName, roleValidityPeriod, localKeyID).
 package registry
 
 import (
@@ -31,15 +32,16 @@ func formatGeneralizedTime(s string) string {
 	return t.Format("2006-01-02 15:04:05")
 }
 
-// SafeBagInfo — расшифрованный мешок SafeBag: содержимое CertBag, краткая информация о сертификате (если X.509) и атрибуты мешка.
+// SafeBagInfo — расшифрованный мешок SafeBag.
+// Содержит CertBag (CertId, CertValueDER), CertSummary при X.509, BagAttributes (roleName, roleValidityPeriod, localKeyID).
 type SafeBagInfo struct {
 	BagId         asn1.ObjectIdentifier
-	CertId        asn1.ObjectIdentifier   // тип сертификата из CertBag
-	CertType      string                  // человекочитаемое описание типа
-	CertSummary   *CertSummary            // краткие данные сертификата, если certValue — X.509
-	CertValueLen  int                     // длина сырых байт, если не X.509
-	CertValueDER  []byte                  // сырой DER сертификата (для X.509), для выгрузки в PEM
-	BagAttributes []BagAttributeValue     // расшифрованные атрибуты мешка (roleName, localKeyID и т.д.)
+	CertId        asn1.ObjectIdentifier // тип сертификата из CertBag
+	CertType      string                // читаемое описание типа
+	CertSummary   *CertSummary          // краткие данные сертификата, если certValue — X.509
+	CertValueLen  int                   // длина сырых байт, если не X.509
+	CertValueDER  []byte                // сырой DER сертификата (для X.509), для выгрузки в PEM
+	BagAttributes []BagAttributeValue   // расшифрованные атрибуты мешка (roleName, localKeyID и т.д.)
 }
 
 // CertSummary — краткая информация о сертификате X.509 (subject, issuer, serial, срок действия, алгоритм ключа).
@@ -113,6 +115,10 @@ func DecodeBagAttributeValues(a Attribute) []BagAttributeValue {
 }
 
 // decodeBagAttrValue по OID и сырым байтам возвращает строковое значение атрибута мешка.
+// friendlyName в PKCS#12 — это удобное, читаемое имя для секретного ключа или сертификата, хранящегося в контейнере.
+// В реестрах ATOM вместо friendlyName чаще используют roleName (OID 1.3.6.1.4.1.99999.1.4),
+// чтобы явно задавать роль (Driver, IVI, Passenger и т.д.).
+// friendlyName остаётся опциональным дополнительным атрибутом для совместимости со стандартным PKCS#12.
 func decodeBagAttrValue(oid asn1.ObjectIdentifier, content, full []byte) string {
 	switch {
 	case oid.Equal(OIDPKCS9FriendlyName):

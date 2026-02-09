@@ -13,7 +13,8 @@ import (
 	"time"
 )
 
-// SafeBagInput — входные данные для одного SafeBag: сертификат и атрибуты мешка.
+// SafeBagInput — входные данные для одного SafeBag в eContent.
+// Используется при сборке: CertDER — DER X.509; RoleName, RoleNotBefore/After — атрибуты мешка; LocalKeyID — обычно SubjectKeyId.
 type SafeBagInput struct {
 	CertDER       []byte // DER сертификата X.509
 	RoleName      string
@@ -22,7 +23,8 @@ type SafeBagInput struct {
 	LocalKeyID    []byte // обычно SubjectKeyId или произвольный идентификатор
 }
 
-// SignerAttrs — атрибуты подписанта для authenticatedAttributes (VIN, VER, UID).
+// SignerAttrs — атрибуты подписанта для SignerInfo.authenticatedAttributes [0].
+// Хранятся на уровне подписанта (ADR-007), не в eContent или SafeBag.
 type SignerAttrs struct {
 	VIN          string
 	VERTimestamp time.Time
@@ -30,10 +32,17 @@ type SignerAttrs struct {
 	UID          string
 }
 
-// BuildRegistry собирает реестр ATOM-PKCS12-REGISTRY: PFX с authSafe = ContentInfo(SignedData).
-// signerCert — сертификат подписанта, signerKey — приватный ключ для подписи.
-// safeBags — список мешков (сертификаты + атрибуты для eContent).
-// Возвращает DER-кодированный PFX.
+// BuildRegistry собирает реестр ATOM-PKCS12-REGISTRY в формате, совместимом с эталоном (ADR-011).
+//
+// Этапы:
+//  1. marshalSafeContents — SafeContents (SEQUENCE OF SafeBag) с roleName, roleValidityPeriod, localKeyID
+//  2. encapContentInfo — eContentType=pkcs7-data, eContent [0]=EXPLICIT OCTET STRING
+//  3. messageDigest — SHA-256 над eContent (safeContentsDER)
+//  4. authenticatedAttributes — contentType, VIN, VER, UID, messageDigest (сортировка по DER)
+//  5. signAuthenticatedAttributes — ECDSA P-256 над DER(authenticatedAttributes)
+//  6. certificates [0] — полный SET TLV; SignerInfo с sid=[0] EXPLICIT OCTET STRING (SubjectKeyId)
+//
+// Возвращает DER-кодированный PFX (version=3, authSafe=ContentInfo с полным SignedData TLV в content [0]).
 func BuildRegistry(signerCert *x509.Certificate, signerKey *ecdsa.PrivateKey, safeBags []SafeBagInput, attrs SignerAttrs) ([]byte, error) {
 	if signerCert == nil || signerKey == nil {
 		return nil, fmt.Errorf("signer cert and key required")
@@ -133,22 +142,6 @@ var (
 	OIDSHA256          = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 1}
 	OIDECDSAWithSHA256 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 2}
 )
-
-// derSkipTagAndLength возвращает содержимое первого TLV в d (пропускает тег и длину DER).
-// Нужно для [0] IMPLICIT: в контекстный тег кладём только content внутреннего типа.
-func derSkipTagAndLength(d []byte) []byte {
-	if len(d) < 2 {
-		return nil
-	}
-	skip := 2 // tag + 1 byte length
-	if d[1]&0x80 != 0 {
-		skip += int(d[1] & 0x7f)
-	}
-	if skip > len(d) {
-		return nil
-	}
-	return d[skip:]
-}
 
 func marshalSafeContents(inputs []SafeBagInput) ([]byte, error) {
 	var bags []SafeBag

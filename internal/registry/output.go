@@ -1,3 +1,4 @@
+// output.go — формирование вывода CLI: TextOutput (текст), JSONOutput, ToPEM, ToSafeBagsPEM, SignerCertPEM.
 package registry
 
 import (

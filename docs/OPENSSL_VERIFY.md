@@ -62,6 +62,72 @@ openssl verify -CAfile chain.pem owner_registry_signer.pem
 
 Если CA нет в файле, а сертификат самоподписанный (issuer = subject), `openssl verify` без `-CAfile` выдаст ошибку — для самоподписанных достаточно проверки дат и полей через `x509 -text`.
 
+---
+
+## Проверка цепочки доверия на основе тестовых сертификатов (root-ca.pem)
+
+В тестовом стенде подписант реестра может быть выпущен **от корневого CA**. Корень и подписант создаются скриптом [scripts/generate_signer_from_root.sh](../scripts/generate_signer_from_root.sh). Для полной проверки цепочки нужны **два файла**:
+
+| Файл | Описание |
+|------|----------|
+| **certs/root-ca.pem** | Сертификат корневого CA (CN=ATOM Registry Root CA). Доверенный корень для проверки. |
+| **\<имя_реестра\>_signer.pem** | Сертификат подписанта контейнера (CN=Owner Registry Signer), выгруженный из реестра. |
+
+### Шаг 1: Выгрузить сертификат подписанта из реестра
+
+Сертификат подписанта лежит внутри .p12 в SignedData.certificates; для проверки цепочки его нужно экспортировать в PEM:
+
+```bash
+./registry-analyzer -export-signer-cert sgw-owner-6-new.p12
+```
+
+Создаётся файл **sgw-owner-6-new_signer.pem** (имя формируется как `<имя_контейнера>_signer.pem`).
+
+### Шаг 2: Проверить цепочку доверия
+
+Подписант должен быть выдан корнем. Команда:
+
+```bash
+openssl verify -CAfile certs/root-ca.pem sgw-owner-6-new_signer.pem
+```
+
+Ожидаемый вывод при успехе:
+
+```text
+sgw-owner-6-new_signer.pem: OK
+```
+
+Это означает: сертификат подписанта действителен и подписан доверенным корнем **certs/root-ca.pem**.
+
+### Шаг 3: Просмотр цепочки (опционально)
+
+```bash
+# Подписант: кто выдал и срок действия
+openssl x509 -in sgw-owner-6-new_signer.pem -noout -subject -issuer -dates
+
+# Корень (самоподписанный)
+openssl x509 -in certs/root-ca.pem -noout -subject -issuer -dates
+```
+
+Типичный вывод для подписанта: `subject= CN=Owner Registry Signer`, `issuer= CN=ATOM Registry Root CA`.
+
+### Как получить тестовые сертификаты (root + подписант)
+
+Скрипт создаёт корневой CA и подписанта, выпущенного от корня:
+
+```bash
+./scripts/generate_signer_from_root.sh
+```
+
+В каталоге **certs/** появятся:
+
+- **root-ca.pem**, **root-ca-key.pem** — корневой CA (храните root-ca-key.pem в безопасном месте или только для тестов).
+- **signer.pem**, **signer-key.pem** — подписант (signer.pem выпущен от root-ca.pem).
+
+После этого сборка реестра (`./registry-builder -config config.json -output sgw-owner-6-new.p12`) подписывает контейнер этим подписантом; цепочку затем проверяют по шагам 1–2 выше.
+
+**Итог:** для полной проверки цепочки подписи реестра нужны **root-ca.pem** (доверенный корень) и **\<реестр\>_signer.pem** (сертификат подписанта, экспортированный из .p12).
+
 ### Ошибка 18: self signed certificate
 
 При проверке подписанта контейнера (`owner_registry_signer.pem`) часто возникает:

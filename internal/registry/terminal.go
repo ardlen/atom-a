@@ -1,3 +1,4 @@
+// terminal.go — ANSI-цвета, иконки, SignerCert (поиск сертификата подписанта по SubjectKeyIdentifier).
 package registry
 
 import (
@@ -30,9 +31,9 @@ const (
 	IconId         = "🆔"
 )
 
-// SignerCert возвращает сертификат, которым подписан контейнер для данного SignerInfo, или nil.
-// Идентификатор подписанта (SID) — CHOICE: subjectKeyIdentifier [0] (OCTET STRING) или issuerAndSerialNumber (SEQUENCE).
-// Сопоставление выполняется по SubjectKeyId среди сертификатов из SignedData.
+// SignerCert возвращает сертификат подписанта для данного SignerInfo, или nil если не найден.
+// SID в SignerInfo — [0] subjectKeyIdentifier (OCTET STRING). Поиск в c.Certificates по совпадению SubjectKeyId.
+// Поддерживается как сырое значение OCTET STRING в si.SID.Bytes, так и DER-обёртка (04 ll val).
 func (c *Container) SignerCert(si *SignerInfo) *x509.Certificate {
 	raw := si.SID
 	if len(raw.Bytes) == 0 {

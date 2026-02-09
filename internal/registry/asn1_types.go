@@ -1,3 +1,5 @@
+// asn1_types.go — ASN.1-типы контейнера ATOM-PKCS12-REGISTRY (PFX, ContentInfo, SignedData, SafeBag, CertBag, Attribute).
+// Соответствуют registry.asn1, RFC 7292 (PKCS#12), RFC 5652 (CMS).
 package registry
 
 import "encoding/asn1"

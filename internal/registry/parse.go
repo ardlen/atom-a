@@ -1,3 +1,6 @@
+// Package registry обеспечивает разбор и сборку контейнеров ATOM-PKCS12-REGISTRY (.p12).
+// Контейнер — PFX (PKCS#12) с authSafe = ContentInfo(SignedData). eContent декодируется как SafeContents (SEQUENCE OF SafeBag).
+// Подписант идентифицируется по SubjectKeyIdentifier в SignerInfo.sid.
 package registry
 
 import (
@@ -8,8 +11,13 @@ import (
 )
 
 // Container — результат разбора контейнера ATOM-PKCS12-REGISTRY.
-// Содержит версию PFX, тип содержимого, SignedData, список сертификатов,
-// мешки SafeBag (сырые и расшифрованные), информацию о подписантах.
+//
+// Содержит:
+//   - PFXVersion, ContentType — метаданные оболочки PFX
+//   - SignedData — сырая структура CMS
+//   - Certificates — сертификаты из SignedData.certificates (подписант + CA)
+//   - SafeBags, SafeBagInfos — мешки из eContent (сертификаты ролей Driver, IVI и т.д.)
+//   - Signers — SignerInfo с атрибутами (VIN, VER, UID в authenticatedAttributes)
 type Container struct {
 	PFXVersion   int
 	ContentType  asn1.ObjectIdentifier
@@ -20,7 +28,9 @@ type Container struct {
 	Signers      []SignerInfo
 }
 
-// derPrependTLV добавляет DER-тег и длину к content (для восстановления TLV при разборе IMPLICIT).
+// derPrependTLV добавляет DER-тег и длину к content.
+// Используется при разборе IMPLICIT-кодирования: когда в контекстный тег [0] записано только содержимое без TLV,
+// восстанавливаем полный TLV для корректного asn1.Unmarshal (например, SignedData без 0x30, SET без 0x31).
 func derPrependTLV(tag byte, content []byte) []byte {
 	if len(content) == 0 {
 		return nil
@@ -37,8 +47,15 @@ func derPrependTLV(tag byte, content []byte) []byte {
 	return append(append([]byte{tag}, lenBytes...), content...)
 }
 
-// Parse разбирает DER-кодированный файл .p12 (PFX с authSafe = ContentInfo(SignedData))
-// и возвращает структуру Container с сертификатами, мешками и подписантами.
+// Parse разбирает DER-кодированный файл .p12 (PFX с authSafe = ContentInfo(SignedData)).
+//
+// Этапы:
+//  1. Разбор PFX, проверка version=3 и contentType=pkcs7-signedData
+//  2. Разбор SignedData (с восстановлением TLV при IMPLICIT content [0])
+//  3. Извлечение сертификатов из certificates [0] (SET OF Certificate)
+//  4. Декодирование eContent как SafeContents, разбор SafeBag и атрибутов
+//
+// Поддерживается как полный TLV в content [0], так и IMPLICIT (только содержимое без тега).
 func Parse(der []byte) (*Container, error) {
 	var pfx PFX
 	rest, err := asn1.Unmarshal(der, &pfx)
@@ -181,7 +198,9 @@ func ParseAuthenticatedAttributes(raw []byte) ([]Attribute, error) {
 	return attrs, nil
 }
 
-// unwrapOctetStringIfPresent возвращает payload: если d — DER OCTET STRING (04 ll ...), снимает обёртку.
+// unwrapOctetStringIfPresent возвращает payload OCTET STRING.
+// Если d начинается с 0x04 (тег OCTET STRING), снимает обёртку и возвращает значение; иначе возвращает d как есть.
+// Нужно для eContent [0] и CertBag.certValue [0]: могут быть EXPLICIT (04 ll val) или IMPLICIT (сырые байты).
 func unwrapOctetStringIfPresent(d []byte) []byte {
 	if len(d) < 2 || d[0] != 0x04 {
 		return d
@@ -205,7 +224,8 @@ func unwrapOctetStringIfPresent(d []byte) []byte {
 	return d
 }
 
-// SignerAttributes возвращает расшифрованные атрибуты подписанта из SignerInfo ([0] authenticatedAttributes).
+// SignerAttributes возвращает расшифрованные атрибуты из SignerInfo.authenticatedAttributes [0].
+// Включает contentType, messageDigest, VIN, VER, UID, roleName, roleValidityPeriod (ATOM OID 1.3.6.1.4.1.99999.1.x).
 func SignerAttributes(si *SignerInfo) ([]Attribute, error) {
 	if len(si.AuthenticatedAttributes.Bytes) == 0 {
 		return nil, nil

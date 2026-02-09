@@ -4,7 +4,7 @@
   "vin": "EAY2AT0MPS2013376",
   "verTimestamp": "2024-01-15T17:40:20Z",
   "verVersion": 100,
-  "uid": "emailAddress=client.a@atom.team,CN=Client A,OU=Sales,O=KAMA,L=SPb,ST=SPb,C=RU",
+  "uid": "019c09447a03731f91afa6403987dac2",
   "safeBags": [
     {
       "cert": "certs/driver.pem",

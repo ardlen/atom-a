@@ -1,3 +1,4 @@
+// attributes.go — расшифровка атрибутов SignerInfo.authenticatedAttributes и SafeBag.bagAttributes.
 package registry
 
 import (
@@ -6,7 +7,8 @@ import (
 	"fmt"
 )
 
-// AttrValue — одно расшифрованное значение атрибута для вывода (имя OID и человекочитаемое/сырое значение).
+// AttrValue — одно расшифрованное значение атрибута для вывода.
+// Name — краткое имя (VIN, UID, roleName и т.д.); Value — человекочитаемое; Raw — hex при отсутствии Value.
 type AttrValue struct {
 	Name  string // краткое имя (VIN, UID и т.д.)
 	Value string // человекочитаемое значение

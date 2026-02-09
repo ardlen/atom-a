@@ -1,8 +1,9 @@
+// oid.go — OID из registry.asn1: PKCS#7, PKCS#9, CertBag, ATOM (VIN, VER, UID, roleName, roleValidityPeriod).
 package registry
 
 import "encoding/asn1"
 
-// Константы OID из registry.asn1: PKCS#7, PKCS#9, типы сертификатов PKCS#12 и атрибуты ATOM.
+// OID из registry.asn1: PKCS#7, PKCS#9, типы сертификатов PKCS#12 и атрибуты ATOM (VIN, VER, UID, roleName, roleValidityPeriod).
 var (
 	OIDPKCS7SignedData    = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 2}
 	OIDPKCS7Data          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 1}

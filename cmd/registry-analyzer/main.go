@@ -1,4 +1,9 @@
 // Пакет main — точка входа утилиты анализа контейнеров ATOM-PKCS12-REGISTRY.
+//
+// registry-analyzer разбирает контейнеры .p12 в формате ATOM-PKCS12-REGISTRY (гибрид PKCS#12 PFX и CMS SignedData),
+// извлекает сертификаты из SignedData.certificates и из eContent (SafeContents/SafeBag), атрибуты подписантов (VIN, VER, UID)
+// и выводит отчёт в текстовом, JSON или PEM формате. Поддерживается экспорт сертификатов в отдельные PEM-файлы.
+//
 // Запуск: go run ./cmd/registry-analyzer [опции] <файл.p12>
 package main
 
@@ -14,6 +19,7 @@ import (
 )
 
 func main() {
+	// Флаги вывода: text — человекочитаемый отчёт; json — полный JSON; json-certificates — только данные сертификатов; pem — PEM-цепочка.
 	format := flag.String("format", "text", "Формат вывода: text, json, json-certificates, pem")
 	outputPath := flag.String("output", "", "Записать вывод в файл (по умолчанию — stdout)")
 	exportCertsDir := flag.String("export-certs-dir", "", "Выгрузить каждый сертификат из SignedData в отдельный PEM-файл в указанную директорию (cert-1.pem, cert-2.pem, ...)")
@@ -23,6 +29,8 @@ func main() {
 	noColor := flag.Bool("no-color", false, "Отключить цветной вывод и иконки")
 	colorFlag := flag.String("color", "auto", "Цвет: auto (только TTY), always, never")
 	flag.Parse()
+
+	// Проверка обязательного аргумента — пути к файлу .p12.
 	if flag.NArg() < 1 {
 		fmt.Fprintf(os.Stderr, "Использование: %s [опции] <файл.p12>\n", os.Args[0])
 		flag.PrintDefaults()
@@ -35,6 +43,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Разбор DER-кодированного PFX: извлекаем SignedData, сертификаты, SafeBags и подписантов.
 	c, err := registry.Parse(data)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "разбор контейнера: %v\n", err)
@@ -47,10 +56,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "создание директории %s: %v\n", *exportCertsDir, err)
 			os.Exit(1)
 		}
+		// Избегаем коллизий имён: при повторе добавляем суффикс -2, -3.
 		usedNames := make(map[string]int)
 		for i, cert := range c.Certificates {
 			block := &pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw}
-			base := c.CertExportBasename(cert, i)
+			base := c.CertExportBasename(cert, i) // roleName подписанта или cert-N
 			name := base
 			if n := usedNames[base]; n > 0 {
 				usedNames[base] = n + 1
@@ -146,6 +156,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Сертификат подписанта записан в %s\n", outPath)
 	}
 
+	// Функция вывода: в файл или stdout в зависимости от флага -output.
 	writeOut := func(b []byte) {
 		if *outputPath != "" {
 			if err := os.WriteFile(*outputPath, b, 0644); err != nil {
@@ -157,6 +168,7 @@ func main() {
 		}
 	}
 
+	// Формирование и вывод в выбранном формате.
 	switch strings.ToLower(*format) {
 	case "json":
 		out, err := c.ToJSON()
@@ -189,6 +201,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Сертификаты (PEM) записаны в %s\n", *outputPath)
 		}
 	default:
+		// Цветной вывод только в TTY и если не отключён флагами.
 		useColor := !*noColor && (*colorFlag == "always" || (*colorFlag != "never" && isTerminal(os.Stdout)))
 		var sb strings.Builder
 		c.TextOutput(&sb, useColor)
